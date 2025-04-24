@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Ecosystem Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom styles for the canvas and body */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f8; /* Light background */
+            margin: 0;
+            padding: 1.5rem;
+        }
+        canvas#ecosystemCanvas { /* Specific ID for simulation canvas */
+            display: block;
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 1rem;
+        }
+        .controls-container, .chart-container {
+             background-color: #ffffff;
+             padding: 1rem 1.5rem;
+             border-radius: 0.5rem;
+             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+             margin-bottom: 1rem;
+             width: 100%;
+             max-width: 800px; /* Consistent max width */
+        }
+        .controls-container {
+             display: flex;
+             flex-direction: column;
+             gap: 1rem;
+        }
+        .chart-container {
+             padding: 1.5rem; /* More padding for the chart */
+        }
+        #populationChart { /* Style the chart canvas */
+            max-height: 300px; /* Limit chart height */
+            width: 100% !important; /* Ensure chart fills container */
+        }
+
+        .stats, .main-controls, .add-controls, .growth-controls, .initial-count-controls {
+            width: 100%;
+            text-align: center;
+        }
+         .stats {
+            background-color: #ffffff;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1rem;
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-weight: 500;
+        }
+        input[type="number"] {
+            padding: 0.3rem 0.6rem;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem;
+            margin: 0 0.5rem;
+            width: 60px; /* Fixed width for number inputs */
+            text-align: center;
+        }
+        input[type="number"]:disabled {
+            background-color: #e5e7eb; /* gray-200 */
+            cursor: not-allowed;
+            color: #9ca3af; /* gray-400 */
+        }
+
+        label {
+             margin: 0 0.25rem;
+             font-weight: 500;
+             color: #374151; /* gray-700 */
+        }
+
+        .btn-start { background-color: #22c55e; color: white; }
+        .btn-start:hover:not(:disabled) { background-color: #16a34a; }
+        .btn-start:disabled { background-color: #a3e6b6; cursor: not-allowed; }
+
+        .btn-stop { background-color: #ef4444; color: white; }
+        .btn-stop:hover:not(:disabled) { background-color: #dc2626; }
+        .btn-stop:disabled { background-color: #fca5a5; cursor: not-allowed; }
+
+        .btn-reset { background-color: #6b7280; color: white; }
+        .btn-reset:hover:not(:disabled) { background-color: #4b5563; }
+        .btn-reset:disabled { background-color: #d1d5db; cursor: not-allowed; }
+
+        .btn-add { background-color: #3b82f6; color: white; }
+        .btn-add:hover:not(:disabled) { background-color: #2563eb; }
+
+        /* Stats styling */
+        .stats span {
+            margin: 0 0.75rem;
+            font-weight: 500;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .grass-count { color: #16a34a; }
+        .herbivore-count { color: #3b82f6; }
+        .carnivore-count { color: #ef4444; }
+
+        /* Energy bar styling */
+        .energy-bar-bg { fill: #f87171; }
+        .energy-bar-fg { fill: #4ade80; }
+
+        /* Growth Rate Controls */
+        .growth-controls label, .initial-count-controls label {
+            margin: 0 0.75rem 0 0.25rem;
+            cursor: pointer;
+        }
+         .growth-controls input[type="radio"] {
+             margin-right: 0.25rem;
+             cursor: pointer;
+         }
+         .control-section-title {
+             font-weight: 600;
+             margin-bottom: 0.5rem;
+             color: #374151; /* Gray-700 */
+             font-size: 0.9rem;
+             text-transform: uppercase;
+             letter-spacing: 0.05em;
+         }
+
+         /* Modal Styles (Added) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Ensure it's on top */
+            opacity: 0; /* Start hidden */
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            transform: scale(0.9); /* Start slightly smaller */
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.visible .modal-content {
+             transform: scale(1);
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            color: #6b7280; /* Gray-500 */
+        }
+        .modal-close-btn:hover {
+            color: #1f2937; /* Gray-800 */
+        }
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #dc2626; /* Red-600 for extinction */
+        }
+        .modal-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #374151; /* Gray-700 */
+        }
+        .modal-body p {
+            margin-bottom: 0.75rem;
+        }
+        .modal-body strong {
+             color: #1f2937; /* Gray-800 */
+        }
+
+
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-6">
+
+    <h1 class="text-3xl font-bold mb-5 text-gray-800">Virtual Ecosystem</h1>
+
+    <div id="stats" class="stats">
+        <span class="font-semibold">Population:</span>
+        <span id="grass-count" class="grass-count">Grass: 0</span>
+        <span id="herbivore-count" class="herbivore-count">Herbivores: 0</span>
+        <span id="carnivore-count" class="carnivore-count">Carnivores: 0</span>
+    </div>
+
+    <canvas id="ecosystemCanvas" width="800" height="500" class="rounded-lg shadow-md"></canvas>
+
+    <div class="controls-container">
+        <div class="initial-count-controls">
+            <h2 class="control-section-title">Initial Populations</h2>
+            <label for="initialHerbivoresInput">Herbivores:</label>
+            <input type="number" id="initialHerbivoresInput" value="20" min="0" max="200">
+            <label for="initialCarnivoresInput">Carnivores:</label>
+            <input type="number" id="initialCarnivoresInput" value="5" min="0" max="100">
+        </div>
+
+        <div class="growth-controls">
+             <h2 class="control-section-title">Grass Growth Rate</h2>
+             <input type="radio" id="growthLow" name="growthRate" value="low" checked>
+             <label for="growthLow">Low</label>
+             <input type="radio" id="growthNormal" name="growthRate" value="normal">
+             <label for="growthNormal">Normal</label>
+             <input type="radio" id="growthHigh" name="growthRate" value="high">
+             <label for="growthHigh">High</label>
+        </div>
+
+        <div class="main-controls">
+             <h2 class="control-section-title">Simulation</h2>
+             <button id="startButton" class="btn-start">Start</button>
+             <button id="stopButton" class="btn-stop">Stop</button>
+             <button id="resetButton" class="btn-reset">Reset</button>
+        </div>
+
+         <div class="add-controls">
+             <h2 class="control-section-title">Manual Add</h2>
+             <button id="addHerbivoreButton" class="btn-add">Add Herbivore</button>
+             <button id="addCarnivoreButton" class="btn-add">Add Carnivore</button>
+         </div>
+    </div>
+
+    <div class="chart-container">
+        <h2 class="control-section-title text-center mb-3">Population Trends</h2>
+        <canvas id="populationChart"></canvas>
+    </div>
+
+    <div id="extinctionModal" class="modal-overlay">
+        <div class="modal-content">
+            <button id="modalCloseBtn" class="modal-close-btn">&times;</button>
+            <h3 id="modalTitle" class="modal-title">Ecosystem Collapse!</h3>
+            <div id="modalBody" class="modal-body">
+                </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Canvas and Context ---
+        const canvas = document.getElementById('ecosystemCanvas');
+        const ctx = canvas.getContext('2d');
+        const chartCanvas = document.getElementById('populationChart');
+        let animationFrameId = null;
+        let isRunning = false;
+
+        // --- DOM Elements for Controls ---
+        const initialHerbivoresInput = document.getElementById('initialHerbivoresInput');
+        const initialCarnivoresInput = document.getElementById('initialCarnivoresInput');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const resetButton = document.getElementById('resetButton');
+        const addHerbivoreButton = document.getElementById('addHerbivoreButton');
+        const addCarnivoreButton = document.getElementById('addCarnivoreButton');
+        const growthRateRadios = document.querySelectorAll('input[name="growthRate"]');
+        // --- Modal Elements (Added) ---
+        const extinctionModal = document.getElementById('extinctionModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+
+
+        // --- Chart Variables ---
+        let populationChart = null;
+        let chartLabels = [];
+        let grassData = [];
+        let herbivoreData = [];
+        let carnivoreData = [];
+        let frameCounter = 0;
+        const chartUpdateInterval = 30;
+        const maxChartPoints = 200;
+
+        // --- Simulation Parameters ---
+        const config = {
+            // General
+            canvasWidth: 800,
+            canvasHeight: 500,
+            // Grass
+            initialGrass: 80,
+            grassGrowthRates: { low: 0.1, normal: 0.25, high: 0.5 },
+            grassSize: 4,
+            grassColor: '#16a34a',
+            // Herbivore
+            herbivoreEnergyDecay: 0.1,
+            herbivoreMoveEnergyCost: 0.2,
+            herbivoreReproductionEnergy: 100,
+            herbivoreReproductionCost: 50,
+            energyFromGrass: 25,
+            herbivoreMaxEnergy: 150,
+            herbivoreSpeed: 1.5,
+            herbivoreSightRadius: 60,
+            herbivoreSize: 6,
+            herbivoreColor: '#3b82f6',
+            // Carnivore
+            carnivoreEnergyDecay: 0.15,
+            carnivoreMoveEnergyCost: 0.3,
+            carnivoreReproductionEnergy: 150,
+            carnivoreReproductionCost: 75,
+            energyFromHerbivore: 80,
+            carnivoreMaxEnergy: 200,
+            carnivoreSpeed: 1.8,
+            carnivoreSightRadius: 80,
+            carnivoreSize: 8,
+            carnivoreColor: '#ef4444',
+            // Shared
+            maxOrganisms: 500,
+            maxGrass: 1000,
+        };
+
+        // --- Simulation State ---
+        let grass = [];
+        let herbivores = [];
+        let carnivores = [];
+        let currentGrassGrowthRate = config.grassGrowthRates.low;
+
+        // --- Utility Functions ---
+        function getRandom(min, max) { return Math.random() * (max - min) + min; }
+        function distance(x1, y1, x2, y2) { const dx = x1 - x2; const dy = y1 - y2; return Math.sqrt(dx * dx + dy * dy); }
+        function drawEnergyBar(x, y, size, currentEnergy, maxEnergy) {
+             const barWidth = size * 2; const barHeight = 3; const barY = y - size - 6;
+             const energyRatio = Math.max(0, currentEnergy / maxEnergy);
+             ctx.fillStyle = '#f87171'; ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
+             ctx.fillStyle = '#4ade80'; ctx.fillRect(x - barWidth / 2, barY, barWidth * energyRatio, barHeight);
+        }
+
+        // --- Organism Classes (No changes needed here) ---
+        class Grass { /* ... */ constructor(x, y) { this.x = x ?? getRandom(0, config.canvasWidth); this.y = y ?? getRandom(0, config.canvasHeight); this.size = config.grassSize; this.color = config.grassColor; } draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2); ctx.fill(); } }
+        class Animal { /* ... */ constructor(x, y, energy, maxEnergy, size, color, speed, sightRadius, energyDecay, moveEnergyCost, reproductionEnergy, reproductionCost) { this.x = x ?? getRandom(0, config.canvasWidth); this.y = y ?? getRandom(0, config.canvasHeight); this.energy = energy; this.maxEnergy = maxEnergy; this.size = size; this.color = color; this.speed = speed; this.sightRadius = sightRadius; this.energyDecay = energyDecay; this.moveEnergyCost = moveEnergyCost; this.reproductionEnergy = reproductionEnergy; this.reproductionCost = reproductionCost; this.target = null; } drawShape() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2); ctx.fill(); } draw() { this.drawShape(); drawEnergyBar(this.x, this.y, this.size, this.energy, this.maxEnergy); } moveTowards(targetX, targetY) { const angle = Math.atan2(targetY - this.y, targetX - this.x); const dx = Math.cos(angle) * this.speed; const dy = Math.sin(angle) * this.speed; this.x += dx; this.y += dy; this.energy -= this.moveEnergyCost; } wander() { const randomAngle = getRandom(0, Math.PI * 2); const dx = Math.cos(randomAngle) * this.speed * 0.5; const dy = Math.sin(randomAngle) * this.speed * 0.5; this.x += dx; this.y += dy; this.energy -= this.moveEnergyCost * 0.5; } applyBounds() { if (this.x < 0) this.x = config.canvasWidth; if (this.x > config.canvasWidth) this.x = 0; if (this.y < 0) this.y = config.canvasHeight; if (this.y > config.canvasHeight) this.y = 0; } findNearest(list) { let nearest = null; let minDistance = this.sightRadius; for (const item of list) { if (!item) continue; const d = distance(this.x, this.y, item.x, item.y); if (d < minDistance) { minDistance = d; nearest = item; } } return nearest; } canReproduce() { return this.energy >= this.reproductionEnergy; } performReproduction(offspringList, OffspringClass) { const totalAnimals = herbivores.length + carnivores.length; if (totalAnimals < config.maxOrganisms) { this.energy -= this.reproductionCost; const offspringX = this.x + getRandom(-10, 10); const offspringY = this.y + getRandom(-10, 10); offspringList.push(new OffspringClass(offspringX, offspringY, this.reproductionCost)); } } isDead() { return this.energy <= 0; } baseUpdate() { this.energy -= this.energyDecay; this.applyBounds(); } }
+        class Herbivore extends Animal { /* ... */ constructor(x, y, energy) { super(x, y, energy ?? getRandom(config.herbivoreReproductionEnergy / 2, config.herbivoreMaxEnergy), config.herbivoreMaxEnergy, config.herbivoreSize, config.herbivoreColor, config.herbivoreSpeed, config.herbivoreSightRadius, config.herbivoreEnergyDecay, config.herbivoreMoveEnergyCost, config.herbivoreReproductionEnergy, config.herbivoreReproductionCost); this.targetGrass = null; } drawShape() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.moveTo(this.x, this.y - this.size / 1.5); ctx.lineTo(this.x - this.size / 2, this.y + this.size / 2); ctx.lineTo(this.x + this.size / 2, this.y + this.size / 2); ctx.closePath(); ctx.fill(); } update() { this.baseUpdate(); if (!this.targetGrass || grass.indexOf(this.targetGrass) === -1) { this.targetGrass = this.findNearest(grass); } if (this.targetGrass) { this.moveTowards(this.targetGrass.x, this.targetGrass.y); if (distance(this.x, this.y, this.targetGrass.x, this.targetGrass.y) < (this.size + this.targetGrass.size) / 2) { this.eat(this.targetGrass); this.targetGrass = null; } } else { this.wander(); } if (this.canReproduce()) { this.performReproduction(herbivores, Herbivore); } this.draw(); } eat(grassInstance) { this.energy = Math.min(this.energy + config.energyFromGrass, this.maxEnergy); const index = grass.indexOf(grassInstance); if (index > -1) { grass.splice(index, 1); } } }
+        class Carnivore extends Animal { /* ... */ constructor(x, y, energy) { super(x, y, energy ?? getRandom(config.carnivoreReproductionEnergy / 2, config.carnivoreMaxEnergy), config.carnivoreMaxEnergy, config.carnivoreSize, config.carnivoreColor, config.carnivoreSpeed, config.carnivoreSightRadius, config.carnivoreEnergyDecay, config.carnivoreMoveEnergyCost, config.carnivoreReproductionEnergy, config.carnivoreReproductionCost); this.targetHerbivore = null; } drawShape() { ctx.fillStyle = this.color; ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size); } update() { this.baseUpdate(); if (!this.targetHerbivore || herbivores.indexOf(this.targetHerbivore) === -1) { this.targetHerbivore = this.findNearest(herbivores); } if (this.targetHerbivore) { this.moveTowards(this.targetHerbivore.x, this.targetHerbivore.y); if (distance(this.x, this.y, this.targetHerbivore.x, this.targetHerbivore.y) < (this.size + this.targetHerbivore.size) / 2) { this.eat(this.targetHerbivore); this.targetHerbivore = null; } } else { this.wander(); } if (this.canReproduce()) { this.performReproduction(carnivores, Carnivore); } this.draw(); } eat(herbivoreInstance) { this.energy = Math.min(this.energy + config.energyFromHerbivore, this.maxEnergy); const index = herbivores.indexOf(herbivoreInstance); if (index > -1) { herbivores.splice(index, 1); } } }
+
+
+        // --- Chart Functions ---
+        function initializeChart() { /* ... */ if (populationChart) { populationChart.destroy(); } chartLabels = []; grassData = []; herbivoreData = []; carnivoreData = []; frameCounter = 0; const chartCtx = chartCanvas.getContext('2d'); populationChart = new Chart(chartCtx, { type: 'line', data: { labels: chartLabels, datasets: [ { label: 'Grass', data: grassData, borderColor: config.grassColor, backgroundColor: config.grassColor + '33', tension: 0.1, pointRadius: 0, fill: false }, { label: 'Herbivores', data: herbivoreData, borderColor: config.herbivoreColor, backgroundColor: config.herbivoreColor + '33', tension: 0.1, pointRadius: 0, fill: false }, { label: 'Carnivores', data: carnivoreData, borderColor: config.carnivoreColor, backgroundColor: config.carnivoreColor + '33', tension: 0.1, pointRadius: 0, fill: false } ] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, scales: { x: { title: { display: true, text: 'Time (Frames)' } }, y: { title: { display: true, text: 'Population' }, beginAtZero: true } }, plugins: { legend: { position: 'top' }, title: { display: false } } } }); }
+        function recordDataPoint() { /* ... */ chartLabels.push(frameCounter); grassData.push(grass.length); herbivoreData.push(herbivores.length); carnivoreData.push(carnivores.length); if (chartLabels.length > maxChartPoints) { chartLabels.shift(); grassData.shift(); herbivoreData.shift(); carnivoreData.shift(); } }
+        function updateChart() { /* ... */ if (populationChart) { populationChart.data.labels = chartLabels; populationChart.data.datasets[0].data = grassData; populationChart.data.datasets[1].data = herbivoreData; populationChart.data.datasets[2].data = carnivoreData; populationChart.update(); } }
+
+
+        // --- Simulation Logic ---
+        function initialize() {
+            console.log("Initializing simulation...");
+            hideModal(); // Ensure modal is hidden on reset
+            grass = []; herbivores = []; carnivores = [];
+            const initialHerbivoreCount = parseInt(initialHerbivoresInput.value) || 0;
+            const initialCarnivoreCount = parseInt(initialCarnivoresInput.value) || 0;
+            for (let i = 0; i < config.initialGrass; i++) { grass.push(new Grass()); }
+            for (let i = 0; i < initialHerbivoreCount; i++) { herbivores.push(new Herbivore()); }
+            for (let i = 0; i < initialCarnivoreCount; i++) { carnivores.push(new Carnivore()); }
+            setGrowthRateFromUI();
+            initializeChart();
+            updateStats();
+            draw();
+            console.log("Initialization complete.");
+        }
+        function updateStats() {
+            const grassCountEl = document.getElementById('grass-count');
+            const herbivoreCountEl = document.getElementById('herbivore-count');
+            const carnivoreCountEl = document.getElementById('carnivore-count');
+            if (grassCountEl) grassCountEl.textContent = `Grass: ${grass.length}`;
+            if (herbivoreCountEl) herbivoreCountEl.textContent = `Herbivores: ${herbivores.length}`;
+            if (carnivoreCountEl) carnivoreCountEl.textContent = `Carnivores: ${carnivores.length}`;
+         }
+
+         function simulationStep() {
+            frameCounter++;
+            const totalAnimals = herbivores.length + carnivores.length;
+            ctx.clearRect(0, 0, config.canvasWidth, config.canvasHeight);
+            if (grass.length < config.maxGrass && Math.random() < currentGrassGrowthRate) { grass.push(new Grass()); }
+            grass.forEach(g => g.draw());
+            for (let i = carnivores.length - 1; i >= 0; i--) { const c = carnivores[i]; c.update(); if (c.isDead()) { carnivores.splice(i, 1); } }
+            for (let i = herbivores.length - 1; i >= 0; i--) { const h = herbivores[i]; if (herbivores.includes(h)) { h.update(); if (h.isDead()) { herbivores.splice(i, 1); } } }
+            updateStats();
+            if (frameCounter % chartUpdateInterval === 0) { recordDataPoint(); updateChart(); }
+
+            // --- Extinction Check (Added) ---
+            let extinctSpecies = null;
+            if (herbivores.length === 0 && carnivores.length > 0) { // Carnivores remain but herbivores gone
+                extinctSpecies = 'Herbivores';
+            } else if (carnivores.length === 0 && herbivores.length > 0) { // Herbivores remain but carnivores gone
+                 extinctSpecies = 'Carnivores';
+            } else if (herbivores.length === 0 && carnivores.length === 0 && frameCounter > 1) { // Both gone (check frameCounter > 1 to avoid triggering at start if initial counts are 0)
+                 extinctSpecies = 'Both';
+            }
+
+            if (extinctSpecies) {
+                handleExtinction(extinctSpecies);
+            }
+            // --- End Extinction Check ---
+        }
+
+        function handleExtinction(species) {
+            console.log(`Extinction event: ${species}`);
+            isRunning = false; // Stop the loop
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            setControlStates(false); // Update button states
+            displayExtinctionAnalysis(species); // Show the analysis modal
+        }
+
+        function draw() { /* ... */ ctx.clearRect(0, 0, config.canvasWidth, config.canvasHeight); grass.forEach(g => g.draw()); herbivores.forEach(h => h.draw()); carnivores.forEach(c => c.draw()); }
+        function gameLoop() { if (!isRunning) return; simulationStep(); animationFrameId = requestAnimationFrame(gameLoop); }
+
+
+        // Helper to add organisms programmatically
+        function addOrganism(type, count) {
+            const totalAnimals = herbivores.length + carnivores.length;
+            if (totalAnimals + count > config.maxOrganisms) { console.warn(`Cannot add ${type}: Organism limit reached.`); return false; }
+            for (let i = 0; i < count; i++) {
+                if (type === 'herbivore') { herbivores.push(new Herbivore(undefined, undefined, config.herbivoreReproductionCost)); }
+                else if (type === 'carnivore') { carnivores.push(new Carnivore(undefined, undefined, config.carnivoreReproductionCost)); }
+            }
+            return true;
+        }
+
+        // --- Modal Functions (Added) ---
+        function showModal() {
+            if (extinctionModal) extinctionModal.classList.add('visible');
+        }
+        function hideModal() {
+             if (extinctionModal) extinctionModal.classList.remove('visible');
+        }
+
+        function displayExtinctionAnalysis(species) {
+            let analysisHTML = "";
+            const finalGrass = grass.length;
+            const finalHerbivores = herbivores.length; // Will be 0 if herbivores extinct
+            const finalCarnivores = carnivores.length; // Will be 0 if carnivores extinct
+            const growthRateSetting = Object.keys(config.grassGrowthRates).find(key => config.grassGrowthRates[key] === currentGrassGrowthRate) || 'Unknown';
+
+            analysisHTML += `<p>The simulation ended because the <strong>${species === 'Both' ? 'Herbivore and Carnivore populations' : species + ' population'}</strong> reached zero.</p>`;
+            analysisHTML += `<p><strong>Final State:</strong> Grass: ${finalGrass}, Herbivores: ${finalHerbivores}, Carnivores: ${finalCarnivores}</p>`;
+            analysisHTML += `<p><strong>Grass Growth Rate Setting:</strong> ${growthRateSetting.charAt(0).toUpperCase() + growthRateSetting.slice(1)} (${currentGrassGrowthRate})</p>`;
+
+            if (species === 'Herbivores' || species === 'Both') {
+                 analysisHTML += `<p><strong>Possible causes for Herbivore extinction:</strong></p><ul>`;
+                 if (finalGrass < config.initialGrass * 0.5 || growthRateSetting === 'low') { // Check if grass is low or growth rate was low
+                     analysisHTML += `<li><strong>Insufficient Food:</strong> The grass population (${finalGrass}) may have been too low to sustain the herbivores, potentially due to a low growth rate ('${growthRateSetting}') or a high starting herbivore population.</li>`;
+                 }
+                 if (finalCarnivores > 0 || (species === 'Both' && carnivoreData.length > 0 && carnivoreData[carnivoreData.length-1] > 0)) { // Check if carnivores were present recently
+                     analysisHTML += `<li><strong>Excessive Predation:</strong> The carnivore population may have been too high relative to the herbivores, leading to overhunting.</li>`;
+                 }
+                 analysisHTML += `</ul>`;
+            }
+
+             if (species === 'Carnivores' || species === 'Both') {
+                 analysisHTML += `<p><strong>Possible causes for Carnivore extinction:</strong></p><ul>`;
+                 analysisHTML += `<li><strong>Insufficient Prey:</strong> The herbivore population likely became too low to sustain the carnivores. This could be a cascading effect from low grass availability impacting herbivores, or simply too many carnivores for the available prey.</li>`;
+                 analysisHTML += `</ul>`;
+            }
+
+             analysisHTML += `<p>Consider adjusting the initial populations or the grass growth rate and running the simulation again.</p>`;
+
+             modalBody.innerHTML = analysisHTML;
+             showModal();
+        }
+
+
+        // --- Event Listeners ---
+        function setControlStates(running) {
+             startButton.disabled = running;
+             stopButton.disabled = !running;
+             resetButton.disabled = running;
+             initialHerbivoresInput.disabled = running;
+             initialCarnivoresInput.disabled = running;
+             growthRateRadios.forEach(radio => radio.disabled = false);
+             addHerbivoreButton.disabled = false;
+             addCarnivoreButton.disabled = false;
+        }
+        startButton.addEventListener('click', () => { if (!isRunning) { console.log("Starting simulation..."); hideModal(); isRunning = true; if (animationFrameId) cancelAnimationFrame(animationFrameId); gameLoop(); setControlStates(true); } });
+        stopButton.addEventListener('click', () => { if (isRunning) { console.log("Stopping simulation..."); isRunning = false; if (animationFrameId) cancelAnimationFrame(animationFrameId); animationFrameId = null; setControlStates(false); } });
+        resetButton.addEventListener('click', () => { console.log("Resetting simulation..."); if (animationFrameId) cancelAnimationFrame(animationFrameId); animationFrameId = null; initialize(); draw(); setControlStates(false); });
+
+        addHerbivoreButton.addEventListener('click', () => {
+            console.log("Attempting to add Herbivore...");
+            const added = addOrganism('herbivore', 1);
+            if (added) { if (!isRunning) { draw(); recordDataPoint(); updateChart(); } updateStats(); }
+        });
+        addCarnivoreButton.addEventListener('click', () => {
+            console.log("Attempting to add Carnivore...");
+            const added = addOrganism('carnivore', 1);
+             if (added) { if (!isRunning) { draw(); recordDataPoint(); updateChart(); } updateStats(); }
+        });
+
+        function setGrowthRateFromUI() { const selectedRate = document.querySelector('input[name="growthRate"]:checked').value; currentGrassGrowthRate = config.grassGrowthRates[selectedRate] || config.grassGrowthRates.normal; console.log("Grass growth rate set to:", selectedRate, `(${currentGrassGrowthRate})`); }
+        growthRateRadios.forEach(radio => { radio.addEventListener('change', setGrowthRateFromUI); });
+
+        // Modal Close Listener (Added)
+        modalCloseBtn.addEventListener('click', hideModal);
+        extinctionModal.addEventListener('click', (event) => { // Close if overlay is clicked
+             if (event.target === extinctionModal) {
+                 hideModal();
+             }
+        });
+
+
+        // --- Initial Setup ---
+        canvas.width = config.canvasWidth;
+        canvas.height = config.canvasHeight;
+
+        initialize();
+        setControlStates(false);
+
+    </script>
+
+</body>
+</html>
